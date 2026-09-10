@@ -2,11 +2,11 @@
 
 > Temporal and graph-forensic AML surveillance with calibrated risk scoring and cost-aware investigation prioritization.
 
-## Business Problem
-Financial institutions process massive transaction volumes but investigators can review only a limited subset. Static rules can miss evolving behavioral and network patterns. The system ranks transactions by illicit-risk probability using temporal behavior and transaction-network evidence, then prioritizes the highest-risk 5% for investigation. The objective is to improve illicit-case detection under a fixed investigation capacity while keeping predictions calibrated and explainable.
+## Overview / Business Problem
+Financial institutions process large transaction volumes while investigators can review only a limited fraction of activity. Static rules can miss evolving behavioral and network patterns. The system ranks transactions by illicit-risk probability using temporal behavior and transaction-network evidence, then prioritizes the highest-risk 5% for investigation. The objective is to improve illicit-case detection under a fixed investigation capacity while keeping predictions calibrated and explainable.
 
 ## Solution
-ForensicAML extracts point-in-time temporal behavioral features and graph-topology forensic features from transaction networks. A LightGBM classifier estimates raw illicit risk, which is then mapped to actual expected probabilities using Platt calibration. The highest-risk 5% of transactions are flagged into a fixed-capacity investigation queue, alongside TreeSHAP explanations and drift monitoring metrics. The graph and temporal features produced modest incremental predictive lift; the project's main value is the end-to-end decision workflow.
+ForensicAML extracts point-in-time temporal behavioral features and graph-topology forensic features from transaction networks. A LightGBM classifier produces risk scores, which are calibrated using Platt scaling on a temporally held-out validation period. The highest-risk 5% of transactions are flagged into a fixed 5% investigation queue, alongside TreeSHAP explanations and drift monitoring metrics. The graph and temporal features produced modest incremental predictive lift; the project's main value is the end-to-end decision workflow.
 
 ## Architecture
 ```mermaid
@@ -34,37 +34,25 @@ graph TD
 | ECE | 0.0232 |
 | Scenario expected-cost reduction | 47.26% |
 
-> Cost analysis uses scenario assumptions of $50 per investigation and $2,000 per missed illicit case; these are not observed real-world losses.
+> Cost analysis uses scenario assumptions of investigation cost = $50 and loss cost = $2,000; these are scenario assumptions, not observed real-world losses.
 
 ## Tech Stack
-**Language**
 - Python
-
-**ML / Statistics**
 - LightGBM
 - scikit-learn
 - Platt scaling
 - TreeSHAP
-
-**Graph / Forensics**
 - NetworkX
-- temporal behavioral feature engineering
-
-**Data**
 - pandas
 - NumPy
 - SciPy
 - Joblib
-
-**API**
 - FastAPI
 - Pydantic
-
-**Testing**
 - pytest
 
 ## Method
-- Chronological train / validation / future-test split
+- Chronological train/validation/test split
 - Point-in-time-safe graph and temporal features
 - Unknown-label transactions excluded from supervised training
 - LightGBM for tabular risk modeling
@@ -76,16 +64,17 @@ graph TD
 ## Dataset
 - [Elliptic++ public research dataset](https://github.com/git-disl/EllipticPlusPlus)
 - 203,769 transaction nodes
-- 49 time steps
 - 234,355 transaction edges
-- Label 1 = illicit
-- Label 2 = licit
-- Label 3 = unknown
-- Unknown labels excluded from supervised training/evaluation
-- Available graph nodes/edges retained for graph construction
+- 49 time steps
+- Labels:
+  - 1 = illicit
+  - 2 = licit
+  - 3 = unknown
+- Unknown-label transactions are excluded from supervised training and evaluation
+- Available unknown nodes/edges are retained in graph construction where applicable to preserve network context
 
 ## Explainability
-> TreeSHAP provides local feature contributions for individual predictions, allowing investigators to inspect which model features increased or decreased the estimated illicit-risk score.
+> TreeSHAP provides local feature contributions for individual predictions, including custom temporal and graph features where they influence the model.
 
 Example output:
 ```json
@@ -95,7 +84,7 @@ Example output:
   "contribution": 0.124
 }
 ```
-*Note: SHAP explains model behavior, not criminal intent.*
+*Note: SHAP explains model behavior, not investigator/legal intent.*
 
 ## API
 - `GET /health`
@@ -108,17 +97,22 @@ Example response:
   "transaction_id": "tx_1",
   "calibrated_probability": 0.1652,
   "decision": "INVESTIGATE",
-  "policy": "Fixed 5% Capacity (Threshold: 0.1526)"
+  "policy": "Fixed 5% Investigation Queue",
+  "implied_population_cutoff": 0.1526
 }
 ```
 
 ## Validation
-- Chronological evaluation and point-in-time leakage checks
-- Full graph preservation and graph/SCC audit
-- Feature ablation and calibration comparison
-- Drift monitoring and untouched future test evaluation
+- Chronological train/validation/test split
+- Point-in-time-safe graph and temporal features
+- Graph edge temporal audit
+- Feature ablations
+- Calibration evaluation
+- Drift monitoring
+- Untouched future test set
+- Graph SCC/cycle validation where relevant
 
-> Graph and temporal forensic features added only modest incremental predictive lift over the raw tabular baseline.
+> Graph and temporal feature ablations produced modest incremental out-of-time lift over the raw tabular baseline.
 
 ## Project Structure
 ```text
@@ -138,3 +132,19 @@ forensic_aml/
 ├── reports/
 └── tests/
 ```
+
+## Limitations
+- Elliptic++ is a public benchmark dataset, not a live banking transaction environment.
+- The scenario cost model uses assumptions.
+- Forensic feature lift is modest.
+- Production deployment would require institution-specific data, controls, governance, and monitoring.
+
+## Reproduction
+To run the test suite and verify frozen artifacts locally:
+```bash
+pip install -r requirements.txt
+pytest tests/
+```
+
+## License
+MIT License
